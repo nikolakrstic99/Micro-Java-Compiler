@@ -1,0 +1,263 @@
+
+package rs.ac.bg.etf.pp1;
+import java_cup.runtime.*;
+import org.apache.log4j.*;
+import rs.ac.bg.etf.pp1.ast.*;
+
+parser code {:
+
+	Logger log = Logger.getLogger(getClass());
+   
+   
+    // slede redefinisani metodi za prijavu gresaka radi izmene teksta poruke
+     
+    public void report_fatal_error(String message, Object info) throws java.lang.Exception {
+      done_parsing();
+      report_error(message, info);
+    }
+  
+    public void syntax_error(Symbol cur_token) {
+        report_error("\nSintaksna greska", cur_token);
+    }
+  
+    public void unrecovered_syntax_error(Symbol cur_token) throws java.lang.Exception {
+        report_fatal_error("Fatalna greska, parsiranje se ne moze nastaviti", cur_token);
+    }
+
+    public void report_error(String message, Object info) {
+    	StringBuilder msg = new StringBuilder(message); 
+    	if (info instanceof Symbol)
+            msg.append (" na liniji ").append(((Symbol)info).left);
+        log.error(msg.toString());
+    }
+
+
+:}
+
+
+scan with {:
+	Symbol s = this.getScanner().next_token();
+	if (s != null && s.value != null) 
+		log.info(s.toString() + " " + s.value.toString());
+	return s;
+:}
+
+terminal PROG, BREAK, SEMI, CLASS, ENUM, ELSE, CONST, IF, DO, WHILE, NEW, PRINT, READ, RETURN, VOID, EXTENDS;
+terminal CONTINUE, THIS, SUPER, GOTO, RECORD;
+terminal PLUS, MINUS, MUL, DIV, PERCENT, EQ, NEQ, GT, GTE, LT, LTE, AND, OR, EQUAL, PLUSPLUS, MINUSMINUS;
+terminal COLON, COMA, DOT, LPAREN, RPAREN, LBRACE, RBRACE, LBRACKET, RBRACKET, QUESTION, CARET, FACT, SWAP, MAX;
+terminal HASH, ET;
+
+terminal String IDENT;
+terminal Integer NUMBER;
+terminal Character CHAR;
+terminal Integer BOOL;
+
+nonterminal List, MethodDeclList, ListElem, ConstDecl, VarDecl, RecordDecl;
+nonterminal List4, VarDeclList;
+nonterminal OpcioniFormPars, StatementList, FormPars, FormalParamDecl;
+nonterminal Statement, DesignatorStatement;
+nonterminal ActPars, DesignatorList, CondTermList, ExpressionsList;
+nonterminal MullopFactorList;
+nonterminal Mulop, Addop, ExprList, SingleStatement, Statements;
+nonterminal OneConstDeclaration, ConstDeclList, ConstDeclType;
+nonterminal VarDeclType, VarIdent;
+
+nonterminal rs.etf.pp1.symboltable.concepts.Obj ProgramName, Program, MethodTypeName, MethodDecl;
+nonterminal rs.etf.pp1.symboltable.concepts.Obj Designator, DesignatorIdent;
+
+nonterminal rs.etf.pp1.symboltable.concepts.Struct Type, TypeIliVoid, TypeOfConst, RecordName, Factor;
+nonterminal rs.etf.pp1.symboltable.concepts.Struct Expression, Term, ModTerm;
+nonterminal rs.etf.pp1.symboltable.concepts.Struct CondFact, Condition, CondTerm; 
+
+precedence left QUESTION;
+precedence left COMA;
+Program ::= (ProgramK1) PROG ProgramName:p List LBRACE MethodDeclList RBRACE;
+
+ProgramName ::= (ProgramNameK1) IDENT:programName;
+
+List ::= (ListK1) List ListElem											/*gotovo*/
+	  |
+	  (ListK2)/* epsilon */ 
+	  ;
+	  
+ListElem ::= (ListElemK1) ConstDecl										/*gotovo*/
+		     |	
+		     (ListElemK2) VarDecl
+		    //	|
+		    //(ListElemK3) error SEMI
+		    // |
+		    // (ListElemK4) error COMA
+		    ;
+		
+ConstDecl ::= (ConstDeclK1) CONST ConstDeclType ConstDeclList SEMI;		/*gotovo*/
+
+ConstDeclType ::= (ConstDeclTypeK1) Type;
+
+ConstDeclList ::= (ConstDeclListK1) ConstDeclList COMA OneConstDeclaration
+				  |
+				  (ConstDeclListK2) OneConstDeclaration;
+
+OneConstDeclaration ::= (OneConstDeclarationK1) IDENT:constName EQUAL TypeOfConst:typeOfConst;
+
+TypeOfConst ::= (TypeOfConstK1) NUMBER:val
+			    |
+			    (TypeOfConstK2) CHAR:val
+			    |
+			    (TypeOfConstK3) BOOL:val;
+
+VarDecl ::= (VarDeclK1) VarDeclType List4 SEMI;			/*gotovo*/
+
+VarDeclType ::= (VarDeclTypeK1) Type;
+
+List4 ::= (List4K1) List4 COMA VarIdent						/*gotovo*/
+		  |
+		  (List4K2) VarIdent;
+
+VarIdent ::= (VarIdentBrackets) IDENT:ident LBRACKET RBRACKET
+			 |
+			 (VarIdentNoBrackets) IDENT:ident;
+
+MethodDecl ::= (MethodDeclK1) MethodTypeName LPAREN OpcioniFormPars RPAREN VarDeclList LBRACE StatementList RBRACE;   /*gotovo*/
+
+MethodTypeName ::= (MethodTypeNameK1) TypeIliVoid:retType IDENT:methName;
+
+TypeIliVoid ::= (TypeIliVoidK1) Type:t									/*gotovo*/
+			 |
+			 (TypeIliVoidK2) VOID
+			 ;
+
+MethodDeclList ::= (MethodDeclListK1) MethodDeclList MethodDecl			/*gotovo*/
+				|
+				(MethodDeclListK2)/* epsilon */ 
+				;
+
+VarDeclList ::= (VarDeclListK1) VarDeclList VarDecl						/*gotovo*/
+			 |
+			 (VarDeclListK2)/* epsilon */ 
+			 ;
+
+OpcioniFormPars ::= (OpcioniFormParsK1) FormPars						/*gotovo*/
+				 |
+				 (OpcioniFormParsK2)/* epsilon */ 
+				 ; 
+
+FormPars ::= (FormParsK1) FormPars COMA FormalParamDecl					/*gotovo*/
+			|
+			(FormParsK2) FormalParamDecl;
+			
+Type ::= (TypeK1) IDENT:type;												/*gotovo*/
+
+FormalParamDecl ::= (FormalParamDeclK1) Type:type IDENT:name LBRACKET RBRACKET		/*gotovo*/
+					|
+					(FormalParamDeclK2) Type:type IDENT:name;														/*gotovo*/
+
+StatementList ::= (AKlasa) Statement StatementList						/*gotovo*/
+			    |
+			    (BKlasa)/* epsilon */ 
+			    ;
+			    
+DesignatorStatement ::=  (DesignatorStatementK1) Designator:d EQUAL Expression:expr
+						 |
+						 (DesignatorStatementK2) Designator:d PLUSPLUS
+						 |
+						 (DesignatorStatementK3) Designator:d MINUSMINUS		/*gotovo*/
+						 |
+						 (DesignatorStatementK4) Designator CARET NUMBER		/*gotovo*/
+						 |
+						 (DesignatorStatementK5) FACT Designator
+						// |
+						// (DesignatorStatementK6) Designator EQUAL error
+						 ;
+
+Designator ::= (Designator) DesignatorIdent:nameOfDesignator DesignatorList;						/*gotovo*/
+
+DesignatorIdent ::= (DesignatorIdent) IDENT:ident;
+
+DesignatorList ::=(DesignatorListK1) LBRACKET Expression RBRACKET
+				|
+				(DesignatorListK2)
+		//		|
+		//		(DesignatorListK3) LBRACKET NUMBER COMA NUMBER RBRACKET
+		;
+
+Addop ::= (AddopK1) PLUS												/*gotovo*/
+		  |
+		  (AddopK2) MINUS;
+		  			  
+Expression ::= (ExprK1) MINUS Term										/*gotovo*/
+	  		   |
+	  		   (ExprK2) Term
+	  		   |
+	  		   (ExprK3) Expression Addop Term
+	  		   |
+	  		   (ExprK4) Expression QUESTION Expression
+	  //	   |
+	  //	   (ExprK5) Expression FACT
+	  //	   |
+	  //	   (ExprK6) Expression CARET NUMBER
+	  //	   |
+	  //	   (ExprK7) CARET NUMBER
+	  //	   |
+	  //	   (ExprK8) CARET Designator
+	  			;
+	  
+Term ::=
+// (MoreTerm) Term:t Mulop ModTerm 
+	  (MoreTerm) Term:t Mulop Factor:f
+	   |
+	   (OneTerm) Factor:f
+	//     |
+	//     (MOD) ModTerm
+	;
+	     
+//ModTerm ::= (M1) ModTerm LTE GT Factor
+//		    |
+//	        (OneTerm) Factor:f
+//	    	;
+
+Factor ::=  (FactorK1) TypeOfConst:typeOfConst
+			|
+			(FactorK2) LPAREN Expression:e RPAREN
+			|
+			(FactorK3) NEW Type LBRACKET Expression:e RBRACKET
+			|
+			(FactorK4) Designator
+	//		|
+	//		(FactorK6) HASH Designator
+	//		|
+	//		(FactorK7) Designator ET Designator
+	//		|
+	//		(FactorK8) NEW Type LBRACKET NUMBER COMA NUMBER RBRACKET
+	//		|
+	//		(FactorK9) LBRACKET Factor ET Expression RBRACKET
+			|
+			(FactorK10) HASH Designator
+			;
+		
+Mulop ::= (MulopK1) MUL													/*gotovo*/
+		  |
+		  (MulopK2) DIV
+		  |
+		  (MulopK3) PERCENT;
+		  
+Statement ::= (StatK1) IDENT COLON SingleStatement
+		   | 
+		   (StatK2) Statements
+		   |
+		   (StatK3) SingleStatement
+		   ;
+		   
+Statements ::= (StatementsK1) LBRACE StatementList RBRACE;				/*gotovo*/
+
+SingleStatement ::= (SingleStatementK1) DesignatorStatement SEMI
+				 |
+				 (SingleStatementK2) READ LPAREN Designator RPAREN SEMI
+				 |
+				 (SingleStatementK3) PRINT LPAREN Expression COMA NUMBER RPAREN SEMI
+				 |
+				 (SingleStatementK4) PRINT LPAREN Expression RPAREN SEMI
+				 |
+				 (SingleStatementK5) Designator SWAP Expression COMA Expression SWAP SEMI
+				 ;
+				 

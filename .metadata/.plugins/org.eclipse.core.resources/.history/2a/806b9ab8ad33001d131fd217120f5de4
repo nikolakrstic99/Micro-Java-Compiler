@@ -1,0 +1,101 @@
+// Test301
+
+program test301
+
+	const int nula = 0;
+	const int jedan = 1;
+	const int tri = 3;
+        const int pet = 5;
+
+	int niz[];
+	int niz2[];
+	char nizch[];
+	
+{
+	void main()	
+		int bodovi;
+		bool bt;
+	{
+			
+		//bodovi = 4;
+		//bodovi = ^bodovi;//KOREN
+		//bodovi = bodovi^4;//stepen
+		//bodovi = bodovi!;//faktorijel
+		//print(bodovi);
+		
+		//niz = new int[2];
+		//niz[0]=0;
+		//niz[1]=1;
+		//niz~0,1~; swap elemenata
+		
+		//niz = new int[5];
+		//niz[0] = 0;
+		//niz[1] = 3;
+		//niz[2] = -1;
+		//niz[3] = 19;
+		//niz[4] = 22;
+		//bodovi = # niz;
+		//print(bodovi); //22 MAX
+		
+		//niz = new int[3];
+		//niz[0] = 0;
+		//niz[1] = 1;
+		//niz[2] = 16;
+		//niz^4;			//mnozi svaki elemnt niza sa 4
+		//print(niz[0]);
+		//print(niz[1]);
+		//print(niz[2]);
+		
+		//print(niz);
+		//print(niz,1);	//PRINT NIZA
+		
+		//niz = new int[3];		spajanje nizova sabiranjem
+		//niz[0] = 5;
+		//niz[1] = 6;
+		//niz[2] = 7;
+		//niz2 = new int[4];
+		//niz2[0] = 9;
+		//niz2[1] = 10;
+		//niz2[2] = 11;
+		//niz2[3] = 12;
+		//niz = niz2 @ niz;
+		//print(niz);
+		
+		
+		niz = new int[8];
+		niz[0] = 6;
+		niz[1] = 2;
+		niz[2] = 4;
+		niz[3] = 1;
+		niz[4] = -1;
+		niz[5] = 12;
+		niz[6] = 8;
+		niz[7] = 3;
+
+		!niz;	//sortiranje niza
+
+		print(niz[0]);
+		print(niz[1]);
+		print(niz[2]);
+		print(niz[3]);
+		print(niz[4]);
+		print(niz[5]);
+		print(niz[6]);
+		print(niz[7]);
+		
+		// niz booleana u char
+		//niz = new bool[8];
+		//niz[0] = false;
+		//niz[1] = true;
+		//niz[2] = false;
+		//niz[3] = false;
+		//niz[4] = false;
+		//niz[5] = true;
+		//niz[6] = true;
+		//niz[7] = false;
+		//c = #niz;
+		//print(c);
+	}
+}
+
+

@@ -1,0 +1,69 @@
+INFO  20:42:10,964 - Compiling source file: C:\Users\Nikola\Desktop\pp rezerva\MJCompiler\test\test301_A.mj
+INFO  20:42:11,201 - #2 program
+INFO  20:42:11,201 - #55 test301
+INFO  20:42:11,201 - #8 const
+INFO  20:42:11,203 - #55 int
+INFO  20:42:11,204 - #55 nula
+INFO  20:42:11,204 - #36 =
+INFO  20:42:11,204 - #56 0
+INFO  20:42:11,204 - #4 ;
+INFO  20:42:11,204 - #8 const
+INFO  20:42:11,205 - #55 int
+INFO  20:42:11,205 - #55 jedan
+INFO  20:42:11,205 - #36 =
+INFO  20:42:11,205 - #56 1
+INFO  20:42:11,205 - #4 ;
+INFO  20:42:11,205 - #8 const
+INFO  20:42:11,205 - #55 int
+INFO  20:42:11,206 - #55 tri
+INFO  20:42:11,206 - #36 =
+INFO  20:42:11,206 - #56 3
+INFO  20:42:11,206 - #4 ;
+INFO  20:42:11,206 - #8 const
+INFO  20:42:11,227 - #55 int
+INFO  20:42:11,228 - #55 pet
+INFO  20:42:11,228 - #36 =
+INFO  20:42:11,228 - #56 5
+INFO  20:42:11,228 - #4 ;
+INFO  20:42:11,228 - #55 int
+INFO  20:42:11,228 - #55 niz
+INFO  20:42:11,228 - #46 [
+INFO  20:42:11,229 - #47 ]
+INFO  20:42:11,229 - #4 ;
+INFO  20:42:11,229 - #55 char
+INFO  20:42:11,229 - #55 nizch
+INFO  20:42:11,229 - #46 [
+INFO  20:42:11,230 - #47 ]
+INFO  20:42:11,230 - #4 ;
+INFO  20:42:11,230 - #44 {
+INFO  20:42:11,230 - #16 void
+INFO  20:42:11,233 - #55 main
+INFO  20:42:11,236 - #42 (
+INFO  20:42:11,236 - #43 )
+INFO  20:42:11,239 - #55 int
+INFO  20:42:11,242 - #55 bodovi
+INFO  20:42:11,242 - #4 ;
+INFO  20:42:11,242 - #55 bool
+INFO  20:42:11,242 - #55 bt
+INFO  20:42:11,242 - #4 ;
+INFO  20:42:11,242 - #44 {
+INFO  20:42:11,243 - #55 bodovi
+INFO  20:42:11,243 - #36 =
+INFO  20:42:11,250 - #56 3
+INFO  20:42:11,250 - #25 *
+INFO  20:42:11,251 - #56 5
+INFO  20:42:11,255 - #23 +
+INFO  20:42:11,256 - #56 2
+INFO  20:42:11,260 - #4 ;
+INFO  20:42:11,260 - #13 print
+INFO  20:42:11,261 - #42 (
+INFO  20:42:11,261 - #55 bodovi
+INFO  20:42:11,261 - #43 )
+INFO  20:42:11,261 - #4 ;
+INFO  20:42:11,261 - #45 }
+INFO  20:42:11,263 - #45 }
+INFO  20:42:11,281 - Obradjuje se funkcija main na liniji 14
+INFO  20:42:11,281 - Obradjuju se parametri funckije, parametar = bodovi na liniji 15
+INFO  20:42:11,281 - Obradjuju se parametri funckije, parametar = bt na liniji 16
+INFO  20:42:11,282 - Obradjuje se operator dodele na liniji 18
+INFO  20:42:11,293 - Parsiranje uspesno zavrseno!

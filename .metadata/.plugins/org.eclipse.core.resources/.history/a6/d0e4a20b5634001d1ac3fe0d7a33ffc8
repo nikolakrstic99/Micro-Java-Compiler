@@ -1,0 +1,1001 @@
+package rs.ac.bg.etf.pp1;
+
+import java.util.HashMap;
+import java.util.Stack;
+import rs.ac.bg.etf.pp1.ast.*;
+import rs.etf.pp1.mj.runtime.Code;
+import rs.etf.pp1.symboltable.Tab;
+import rs.etf.pp1.symboltable.concepts.Obj;
+import rs.etf.pp1.symboltable.concepts.Struct;
+
+public class CodeGenerator extends VisitorAdaptor {
+	
+	private int mainPc;
+	Stack<Obj> desStack = new Stack<>();
+	HashMap<String,Integer> mapa = new HashMap<>();
+	public int getMainPc() {
+		return mainPc;
+	}
+	
+	public void visit(ProgramNameK1 prog) {
+		Obj ordMethod = Tab.find("ord");
+		ordMethod.setAdr(Code.pc);
+		
+		Obj chrMethod = Tab.find("chr");
+		chrMethod.setAdr(Code.pc);
+		
+		Code.put(Code.enter);
+		Code.put(1);
+		Code.put(1);
+		Code.put(Code.load_n);
+		Code.put(Code.exit);
+		Code.put(Code.return_);
+		
+		Obj lenMethod = Tab.find("len");
+		lenMethod.setAdr(Code.pc);
+		
+		Code.put(Code.enter);
+		Code.put(1);
+		Code.put(1);
+		Code.put(Code.load_n);
+		Code.put(Code.arraylength);
+		Code.put(Code.exit);
+		Code.put(Code.return_);
+	}
+	
+	
+	// =========================================================
+	// CONST
+	// =========================================================
+	
+	@Override
+	public void visit(TypeOfConstK1 cnst) {
+		Obj con = Tab.insert(Obj.Con, "$", cnst.struct);
+		con.setLevel(0);
+		con.setAdr(cnst.getVal());
+		Code.load(con);
+//		Code.loadConst(cnst.getVal());
+	}
+	
+	@Override
+	public void visit(TypeOfConstK2 cnst) {
+		Obj con = Tab.insert(Obj.Con, "$", cnst.struct);
+		con.setLevel(0);
+		con.setAdr(cnst.getVal());
+		Code.load(con);
+	}
+	
+	@Override
+	public void visit(TypeOfConstK3 cnst) {
+		Obj con = Tab.insert(Obj.Con, "$", cnst.struct);
+		con.setLevel(0);
+		con.setAdr(cnst.getVal());
+		Code.load(con);
+	}
+	
+	
+
+	
+	// =========================================================
+	// METHOD
+	// =========================================================
+	public void visit(MethodTypeNameK1 methodStart) {
+		if("main".equalsIgnoreCase(methodStart.getMethName())) {
+			mainPc = Code.pc;
+		}
+		methodStart.obj.setAdr(Code.pc);
+		
+//		SyntaxNode methodNode = methodStart.getParent();
+//		VarCounter varCnt = new VarCounter();
+//		methodNode.traverseTopDown(varCnt);
+// 
+//		FormParamCounter fpCnt = new FormParamCounter();
+//		methodNode.traverseTopDown(fpCnt);
+//		Code.put(Code.enter);
+//		Code.put(fpCnt.getCount());
+//		Code.put(fpCnt.getCount() + varCnt.getCount());
+		
+		int paramCount = methodStart.obj.getLevel();
+		int paramAndLocalCount = methodStart.obj.getLocalSymbols().size();
+		
+		Code.put(Code.enter);
+		Code.put(paramCount);
+		Code.put(paramAndLocalCount);
+	}
+	
+	public void visit(MethodDeclK1 methodEnd) {
+		Code.put(Code.exit);
+		Code.put(Code.return_);
+	}
+	
+	
+	// =========================================================
+	// DESIGNATOR
+	// =========================================================
+	public void visit(Designator des) {
+		SyntaxNode parent = des.getParent();
+		if(FactorK4.class == parent.getClass()) {
+			Code.load(des.obj);
+		}
+		
+		des.obj = desStack.pop();
+	}
+	
+	public void visit(DesignatorIdent desIdent) {
+		desStack.push(desIdent.obj);
+	}
+	
+	public void visit(DesignatorListK1 array) {
+		Obj elem = desStack.pop();
+		Code.load(elem);
+		
+		okreniDvaBroja();
+		
+		desStack.push(new Obj(Obj.Elem, elem.getName(),elem.getType().getElemType()));
+	}
+	
+//	public void visit(DesignatorListK3 matrix) {		
+//		Obj elem = desStack.pop();
+//		Code.load(elem);
+//		
+//		Code.loadConst(matrix.getN1());
+//		Code.loadConst(this.mapa.get("novi"));
+//		Code.put(Code.mul);
+//		Code.loadConst(matrix.getN2());
+//		Code.put(Code.add);
+//		
+//		desStack.push(new Obj(Obj.Elem, elem.getName(),elem.getType().getElemType()));
+//	}
+	
+	
+	
+	
+	
+	// =========================================================
+	// STATEMENT
+	// =========================================================
+	public void visit(Statement s) {
+		counter--;
+		if(counter == 0) {
+			Code.put2(zakrpa + 1, Code.pc-zakrpa);
+		}
+	}
+	
+	public void visit(SingleStatementK2 read) {
+		if(read.getDesignator().obj.getType() == Tab.intType)
+			Code.put(Code.read);
+		else
+			Code.put(Code.bread);
+		
+		Code.store(read.getDesignator().obj);
+	}
+	
+	public void visit(SingleStatementK3  print) {
+		Code.loadConst(print.getN2());
+		Code.put(Code.aload);
+		Code.loadConst(5);
+		Code.put(Code.print);
+//		if(print.getExpression().struct == Tab.intType) {
+//			Code.loadConst(5);
+//			Code.put(Code.print);
+//		}else {
+//			Code.loadConst(1);
+//			Code.put(Code.bprint);
+//		}
+	}
+	
+	public void visit(SingleStatementK4 print) {
+//		if(print.getExpression().struct.getKind() == Struct.Array) {
+//			Code.put(Code.dup);
+//			Code.put(Code.arraylength); // niz duzinaNiza
+//			//Code.put(Code.dup2);		// niz duzinaNiza niz duzinaNiza
+//			Code.loadConst(0);			//	niz duzinaNiza indeks
+//			int zakrpa1 = Code.pc;
+//			Code.put(Code.dup2);		//	niz duzinaNiza indeks duzinaNiza indeks
+//			int zakrpa2 = Code.pc;
+//			Code.putFalseJump(Code.ne, 0);
+//			
+//			
+//			//niz duzinaNiza indeks
+//			okreniDvaBroja();
+//			//niz indeks duzinaNiza
+//			Code.put(Code.pop);
+//			//niz indeks
+//			Code.put(Code.dup2);
+//			Code.put(Code.pop);
+//			//niz indeks niz
+//			Code.put(Code.dup_x2);
+//			Code.put(Code.pop);
+//			//niz niz indeks
+//			Code.put(Code.dup_x1);
+//			//niz indeks niz indeks
+//			Code.put(Code.aload);
+//			//niz indeks niz[indeks]
+//			Code.loadConst(5);
+//			Code.put(Code.print);
+//			
+//			//niz indeks
+//			Code.loadConst(1);
+//			Code.put(Code.add);
+//			//niz indeks+1
+//			
+//			Code.put(Code.dup2);
+//			//niz indeks niz indeks
+//			Code.put(Code.pop);
+//			Code.put(Code.arraylength);
+//			//niz indeks duzinaNiza
+//			
+//			Code.put(Code.dup_x1);
+//			Code.put(Code.pop);
+//			//niz duzinaNiza indeks
+//			Code.putJump(zakrpa1);
+//			Code.put2(zakrpa2 + 1, Code.pc-zakrpa2);
+//			Code.put(Code.pop);
+//			Code.put(Code.pop);
+//			Code.put(Code.pop);
+//			return;
+//		}
+		if(print.getExpression().struct == Tab.intType || print.getExpression().struct == TabExtended.boolType) {
+			Code.loadConst(5);
+			Code.put(Code.print);
+		}else {
+			Code.loadConst(1);
+			Code.put(Code.bprint);
+		}
+	}
+	
+//	public void visit(SingleStatementK5 s) {
+//		//niz~2,1~;
+//		//Designator SWAP Expression COMA Expression SWAP SEMI
+//		// na steku vec 2 1
+//		Code.load(s.getDesignator().obj);
+//		Code.put(Code.dup_x2);
+//		Code.put(Code.pop);
+//		
+//		Code.put(Code.dup_x2);
+//        Code.put(Code.pop);
+//        Code.put(Code.dup_x2);
+//        Code.put(Code.aload);
+//        Code.put(Code.dup_x2);
+//        Code.put(Code.pop);
+//        Code.put(Code.dup_x2);
+//        Code.load(s.getDesignator().obj);
+//        Code.put(Code.dup_x2);
+//        okreniDvaBroja();
+//        Code.put(Code.aload);
+//        Code.put(Code.astore);
+//        Code.load(s.getDesignator().obj);
+//        Code.put(Code.dup_x2);
+//        Code.put(Code.pop);
+//        Code.put(Code.astore);
+//	}
+	int counter = 0;
+	int zakrpa = 0;
+	public void visit(SingleStatementK6 s) {
+		counter = s.getN1() + 1;
+		zakrpa = Code.pc;
+		Code.putJump(0);
+	}
+	
+	public void visit(AKlasa a) {
+		counter--;
+		if(counter==0) {
+			Code.put2(zakrpa + 1, Code.pc - zakrpa );
+		}
+	}
+	
+	
+	// =========================================================
+	// EXPRESSION
+	// =========================================================	
+	public void visit(ExprK1 neg) {
+		Code.put(Code.neg);
+	}
+	
+	public void visit(ExprK3 e) {
+		Addop addop = e.getAddop();
+		if(addop instanceof AddopK1)
+			Code.put(Code.add);
+		else
+			Code.put(Code.sub);
+	}
+	
+	public void visit(ExprK4 question) {//a b
+		Code.put(Code.dup2);//a b a b
+		Code.put(Code.pop);//a b a
+		Code.loadConst(0);// a b a 0
+		int zakrpa1=Code.pc;
+		Code.putFalseJump(Code.eq, 0); //a b
+		
+		// kod za a = 0
+		okreniDvaBroja();
+		Code.put(Code.pop);
+		
+		int zakrpa2=Code.pc;
+		Code.putJump(0);
+		// kod za a != 0
+		Code.put2(zakrpa1+1,Code.pc-zakrpa1);
+		Code.put(Code.pop);
+		
+		Code.put2(zakrpa2+1,Code.pc-zakrpa2);
+		
+	}
+	
+	private void okreniDvaBroja(){
+		Code.put(Code.dup_x1);
+		Code.put(Code.pop);
+	}
+	
+//	public void visit(ExprK5 e) {
+//														// 5
+//		Code.loadConst(1);
+//		okreniDvaBroja();								
+//														// 1 5	proizvod sledeciBroj
+//		int zakrpa0 = Code.pc;
+//		Code.put(Code.dup);								// 1 5 5
+//		Code.loadConst(0);								// 1 5 5 0
+//		int zakrpa = Code.pc;
+//		Code.putFalseJump(Code.ne, 0);					//ako smo stigli do 0 skocice; 5
+//		
+//		Code.put(Code.dup);								// 1 5 5
+//		Code.loadConst(1); 								// 1 5 5 1
+//		Code.put(Code.sub); 							// 1 5 4
+//		
+//		Code.put(Code.dup_x2);							// 4 1 5 4
+//		Code.put(Code.pop);								// 4 1 5
+//		Code.put(Code.mul);								//sledeciBroj proizvod;
+//		
+//		okreniDvaBroja();
+//		Code.putJump(zakrpa0);
+//		
+//		
+//		Code.put2(zakrpa + 1, Code.pc-zakrpa);
+//		Code.put(Code.pop);
+//	}
+//	
+//	public void visit(ExprK6 e) {
+//	//2^3 na steku se nalaze 2
+//		if(e.getN2()==0) {
+//			Code.put(Code.pop);
+//			Code.loadConst(1);
+//			return;
+//		}
+//		Code.loadConst(1);			// 2 1
+//		Code.loadConst(-1);			// 2 1 -1
+//		
+//		int zakrpa1 = Code.pc;		//ciniclac proizvod indeks
+//		Code.loadConst(1);
+//		Code.put(Code.add);			// 2 1 0
+//		Code.put(Code.dup);
+//		Code.loadConst(e.getN2());	// 2 1 0 0 3	
+//		int zakrpa2 = Code.pc;
+//		Code.putFalseJump(Code.lt, 0);// ako je cnt < 3 nece skociti
+//									// 2 1 0
+//									//cinilac prozivod indeks
+//		
+//		Code.put(Code.dup_x2);		// 0 2 1 0
+//		Code.put(Code.pop);			// 0 2 1	//indeks cinilac proizvod
+//		okreniDvaBroja();			// 0 1 2	// indeks prozivod cinilac	
+//		Code.put(Code.dup);			// 0 1 2 2 
+//		Code.put(Code.dup_x2);		// 0 2 1 2 2
+//		Code.put(Code.pop);			// 0 2 1 2
+//		Code.put(Code.mul);			// 0 2 2	//indeks cinilac proizvod
+//		
+//		okreniDvaBroja();
+//		
+//		Code.put(Code.dup_x2);
+//		Code.put(Code.pop);
+//
+//		okreniDvaBroja();			//cinilac prozivod indeks
+//		
+//		Code.putJump(zakrpa1);
+//		
+//		Code.put2(zakrpa2 + 1, Code.pc - zakrpa2);
+//		Code.put(Code.pop);
+//		okreniDvaBroja();
+//		Code.put(Code.pop);
+//	}
+//	
+//	public void visit(ExprK7 e) {
+//		//^16
+//		Code.loadConst(e.getN1());
+//		//na steku 16
+//		Code.loadConst(0);
+//		int startWhile = Code.pc;
+//		Code.loadConst(1); 			// 16 0 1 
+//		Code.put(Code.add);			// 16 1
+//		Code.put(Code.dup);			// 16 1 1
+//		Code.put(Code.dup_x2); 		// 1 16 1 1
+//		Code.put(Code.mul);			// 1 16 1*1
+//		Code.put(Code.dup2);		// 1 16 1*1 16 1*1
+//		int zakrpa = Code.pc;
+//		Code.putFalseJump(Code.ge, 0);//ako je manji skocice
+//									// 1 16 1*1
+//		Code.put(Code.pop);			// 1 16
+//		okreniDvaBroja();			//16 1
+//		Code.putJump(startWhile);
+//		
+//		Code.put2(zakrpa + 1, Code.pc-zakrpa);
+//							//x 16 x*x
+//		Code.put(Code.pop);
+//		Code.put(Code.pop);
+//		Code.loadConst(1);	// x 1
+//		Code.put(Code.sub);	// x-1
+//	}
+//	
+//	public void visit(ExprK8 e) {
+//		//^16
+//		Code.load(e.getDesignator().obj);
+//		//na steku 16
+//		Code.loadConst(0);
+//		int startWhile = Code.pc;
+//		Code.loadConst(1); 			// 16 0 1 
+//		Code.put(Code.add);			// 16 1
+//		Code.put(Code.dup);			// 16 1 1
+//		Code.put(Code.dup_x2); 		// 1 16 1 1
+//		Code.put(Code.mul);			// 1 16 1*1
+//		Code.put(Code.dup2);		// 1 16 1*1 16 1*1
+//		int zakrpa = Code.pc;
+//		Code.putFalseJump(Code.ge, 0);//ako je manji skocice
+//									// 1 16 1*1
+//		Code.put(Code.pop);			// 1 16
+//		okreniDvaBroja();			//16 1
+//		Code.putJump(startWhile);
+//		
+//		Code.put2(zakrpa + 1, Code.pc-zakrpa);
+//							//x 16 x*x
+//		Code.put(Code.pop);
+//		Code.put(Code.pop);
+//		Code.loadConst(1);	// x 1
+//		Code.put(Code.sub);	// x-1
+//	}
+	
+//	public void visit(ExprK9 e) {	//niz[5]@4    niz[(5+4)%arraylength]
+//		Code.loadConst(e.getN2());	//niz 5 4
+//		Code.put(Code.add);
+//		Code.put(Code.dup2);		//niz 9 niz 9
+//		Code.put(Code.pop);
+//		Code.put(Code.arraylength);
+//		Code.put(Code.rem); //niz (5+4)%arrlen
+//		Code.put(Code.aload);
+//	}
+	
+	
+	
+	// =========================================================
+	// TERM
+	// =========================================================	
+	@Override
+	public void visit(MoreTerm term) {
+		Mulop mulop =  term.getMulop();
+		if(mulop instanceof MulopK1)
+			Code.put(Code.mul);
+		else if(mulop instanceof MulopK2)
+			Code.put(Code.div);
+		else
+			Code.put(Code.rem);
+	}
+	
+//	public void visit(M1 m) {	//	<=>
+//		Code.put(Code.dup2);	//a b a b
+//		int zakrpa = Code.pc;
+//		Code.putFalseJump(Code.lt, 0);
+//		//ako je a<b
+//		Code.put(Code.pop);
+//		Code.put(Code.pop);
+//		Code.loadConst(-1); 	//-1
+//		int zakrpa2 = Code.pc;
+//		Code.putJump(0);
+//		
+//		Code.put2(zakrpa+1, Code.pc-zakrpa);
+//		Code.put(Code.dup2);	//a b a b
+//		int zakrpa3 = Code.pc;
+//		Code.putFalseJump(Code.gt, 0);
+//		
+//		// ako je a>b
+//		Code.put(Code.pop);
+//		Code.put(Code.pop);
+//		Code.loadConst(1);
+//		int zakrpa4 = Code.pc;
+//		Code.putJump(0);
+//		
+//		Code.put2(zakrpa3 + 1, Code.pc - zakrpa3);
+//		Code.put(Code.pop);
+//		Code.put(Code.pop);
+//		Code.loadConst(0);
+//		Code.put2(zakrpa2 + 1, Code.pc - zakrpa2);
+//		Code.put2(zakrpa4 + 1, Code.pc - zakrpa4);
+//	}
+	
+	
+	
+	// =========================================================
+	// FACTOR
+	// =========================================================
+	@Override
+	public void visit(FactorK3 factor) {
+		int type = (factor.getType().struct == Tab.charType) ? 0 : 1;
+		Code.put(Code.newarray);
+		Code.put(type);
+	}
+	
+//	public void visit(FactorK8 factor) {		//matrica
+//		this.mapa.put("novi", factor.getN3());
+//		int type = (factor.getType().struct == Tab.charType) ? 0 : 1;
+//		Code.loadConst(factor.getN2());
+//		Code.loadConst(factor.getN3());
+//		Code.put(Code.mul);
+//		Code.put(Code.newarray);
+//		Code.put(type);
+//	}
+//	
+//	public void visit(FactorK6 fac) {		//	max niza
+//		Code.load(fac.getDesignator().obj);
+//		Code.loadConst(0);
+//		Code.put(Code.aload);
+//		//max
+//		
+//		Code.load(fac.getDesignator().obj);
+//		Code.put(Code.arraylength);
+//		Code.loadConst(1);
+//		int zakrpa0 = Code.pc;
+//		//max duzinaNiza indeks
+//		Code.put(Code.dup2);
+//		
+//		//max duzinaNiza indeks duzinaNiza indeks
+//		int zakrpa2 = Code.pc;
+//		Code.putFalseJump(Code.ne, 0);
+//		//max duzinaNiza indeks
+//		
+//		okreniDvaBroja();
+//		Code.put(Code.pop);
+//		//max indeks
+//		Code.put(Code.dup);
+//		//max indeks indeks
+//		Code.load(fac.getDesignator().obj);
+//		okreniDvaBroja();
+//		//max indeks niz indeks
+//		Code.put(Code.aload);
+//		//max indeks niz[indeks]
+//		
+//		okreniDvaBroja();
+//		//max niz[indeks] indeks
+//		Code.put(Code.dup_x2);
+//		//indeks max niz[indeks] indeks
+//		Code.put(Code.pop);
+//		nadjiMax();
+//		
+//		
+//		//indeks max
+//		okreniDvaBroja();
+//		//max indeks
+//		Code.load(fac.getDesignator().obj);
+//		Code.put(Code.arraylength);
+//		okreniDvaBroja();
+//		
+//		//max duzinaNiza indeks
+//		Code.loadConst(1);
+//		Code.put(Code.add);
+//		//max duzinaNiza indeks+1
+//		
+//		Code.putJump(zakrpa0);
+//		Code.put2(zakrpa2 + 1, Code.pc - zakrpa2);
+//		Code.put(Code.pop);
+//		Code.put(Code.pop);
+//	}
+//	
+	public void visit(FactorK9 f) {				//CEZAROVA SIFRA
+		okreniDvaBroja();
+		Code.loadConst(65);
+		Code.put(Code.sub);
+		okreniDvaBroja();
+		//slovo(u opsegu [0,57]) pomeraj
+		Code.loadConst(58);
+		Code.put(Code.rem);
+		//slovo(u opsegu [0,57]) pomeraj(u opsegu [0,57])
+		Code.put(Code.add);
+		
+		Code.loadConst(58);
+		Code.put(Code.rem);
+		//(slovo+pomeraj)u opsegu 0,57
+		Code.loadConst(65);
+		Code.put(Code.add);
+	}
+	
+//	public void visit(FactorK10 f) {				NIZ BOOLEANA U CHAR
+//		Code.load(f.getDesignator().obj);	//niz
+//		Code.loadConst(0);
+//		Code.loadConst(0);					//niz broj indeks
+//		int zakrpa = Code.pc;
+//		okreniDvaBroja(); 					//niz indeks broj
+//		Code.put(Code.dup2);				//niz indeks broj indeks broj
+//		Code.put(Code.pop);					//niz indeks broj indeks
+//		Code.load(f.getDesignator().obj);	//niz indeks broj indeks niz
+//		okreniDvaBroja();					//niz indeks broj niz indeks
+//		Code.put(Code.aload);				//niz indeks broj niz[i]
+//		this.okreniDvaBroja(); 				//niz indeks niz[i] broj
+//		Code.loadConst(2);					//niz indeks niz[i] broj 2
+//		Code.put(Code.mul);					//niz indeks niz[i] broj*2
+//		Code.put(Code.add);					//niz indeks niz[i]+broj*2	
+//		okreniDvaBroja(); 					//niz niz[i]+broj*2 indeks 
+//		Code.loadConst(1);
+//		Code.put(Code.add);					//niz niz[i]+broj*2 indeks+1
+//		Code.put(Code.dup);					//niz niz[i]+broj*2 indeks+1 indeks+1
+//		Code.load(f.getDesignator().obj);
+//		Code.put(Code.arraylength);			//niz niz[i]+broj*2 indeks+1 indeks+1 duzinaNiza
+//		Code.putFalseJump(Code.eq, zakrpa);
+//											//niz broj indeks
+//		Code.put(Code.pop);
+//		okreniDvaBroja();
+//		Code.put(Code.pop);
+//											//broj
+//	}
+	
+	private void nadjiMax() {
+		//... max niz[indeks]
+		Code.put(Code.dup2);
+		//... max niz[indeks] max niz[indeks]
+		
+		int zakrpa1 = Code.pc;
+		Code.putFalseJump(Code.lt, 0);
+		
+		//ako je max < niz[indeks]
+		okreniDvaBroja();
+		Code.put2(zakrpa1 + 1, Code.pc - zakrpa1);
+		Code.put(Code.pop);
+		//max
+	}
+	
+//	public void visit(FactorK7 fac) {			//SPAJANJE 2 NIZA
+//		Code.load(fac.getDesignator().obj);
+//		Code.put(Code.arraylength);
+//		Code.load(fac.getDesignator1().obj);
+//		Code.put(Code.arraylength);
+//		Code.put(Code.dup2);
+//		
+//		int zakrpa1 = Code.pc;
+//		Code.putFalseJump(Code.lt, 0);
+//		//ako je 1 manji od 2 niza nece skociti i docice ovde
+//		okreniDvaBroja();
+//		Code.put2(zakrpa1 + 1, Code.pc - zakrpa1);
+//		Code.put(Code.pop);
+//		
+//		//duzinaNiza
+//		Code.put(Code.dup);
+//		Code.put(Code.newarray);
+//		Code.put(1);
+//		//duzinaNiza noviNiz
+//		
+//		
+//		
+//		Code.loadConst(0);
+//		int zakrpa7 = Code.pc;
+//		//duzinaNiza noviNiz indeks
+//		okreniDvaBroja();
+//		//duzinaNiza indeks noviNiz
+//		Code.put(Code.dup_x2);
+//		//noviNiz duzinaNiza indeks noviNiz
+//		Code.put(Code.pop);
+//		//noviNiz duzinaNiza indeks
+//		Code.put(Code.dup2);
+//		//noviNiz duzinaNiza indeks duzinaNiza indeks
+//		int zakrpa5 = Code.pc;
+//		Code.putFalseJump(Code.gt, 0);
+//		//noviNiz duzinaNiza indeks
+//		okreniDvaBroja();
+//		//noviNiz indeks duzinaNiza
+//		Code.put(Code.dup_x2);
+//		//duzinaNiza noviNiz indeks duzinaNiza
+//		Code.put(Code.pop);
+//		//duzinaNiza noviNiz indeks
+//		Code.put(Code.dup);
+//		
+//		//duzinaNiza noviNiz indeks indeks
+//		Code.load(fac.getDesignator().obj);
+//		
+//		Code.put(Code.dup2);
+//		//duzinaNiza noviNiz indeks indeks niz1 indeks niz1
+//		Code.put(Code.pop);
+//		Code.load(fac.getDesignator1().obj);
+//		//duzinaNiza noviNiz indeks indeks niz1 indeks niz2
+//		Code.put(Code.arraylength);
+//
+//		//duzinaNiza noviNiz indeks indeks niz1 indeks niz2Duzina 
+//		int zakrpa6 = Code.pc;
+//		Code.putFalseJump(Code.ge, 0);
+//		//duzinaNiza noviNiz indeks indeks niz1
+//		//nece skociti ako je indeks >= duzineNiza
+//		okreniDvaBroja();
+//		Code.put(Code.pop);
+//		Code.loadConst(0);
+//		//duzinaNiza noviNiz indeks niz1 0
+//		
+//		Code.loadConst(0);
+//		Code.loadConst(1);
+//		int zakrpa2 = Code.pc;
+//		Code.putFalseJump(Code.gt, 0);
+//		
+//		
+//		Code.put2(zakrpa6 + 1,Code.pc - zakrpa6);
+//		okreniDvaBroja();
+//		Code.load(fac.getDesignator1().obj);
+//		//duzinaNiza noviNiz indeks niz1 indeks niz2
+//		okreniDvaBroja();
+//		Code.put(Code.aload);
+//		//duzinaNiza noviNiz indeks niz1 niz2[indeks]
+//		Code.put2(zakrpa2 + 1, Code.pc - zakrpa2);
+//		
+//		
+//		
+//		
+//		
+//		Code.put(Code.dup_x2);
+//		Code.put(Code.pop);
+//		//duzinaNiza noviNiz niz2[indeks] indeks niz1 
+//		Code.put(Code.arraylength);
+//		Code.put(Code.dup2);
+//		//duzinaNiza noviNiz niz2[indeks] indeks duzinaniz1 indeks duzinaniz1
+//		int zakrpa3 = Code.pc;
+//		Code.putFalseJump(Code.ge, 0);
+//		
+//		
+//		
+//		//stavljamo 0
+//		//ako je indeks >= od duzineNiza nece skociti
+//		//duzinaNiza noviNiz niz2[indeks] indeks duzinaniz1
+//		Code.put(Code.pop);
+//		Code.loadConst(0);
+//		//duzinaNiza noviNiz niz2[indeks] indeks 0
+//		
+//		Code.loadConst(0);
+//		Code.loadConst(1);
+//		int zakrpa4 = Code.pc;
+//		Code.putFalseJump(Code.gt, 0);
+//		
+//		
+//		//stavjamo element niz1
+//		Code.put2(zakrpa3 + 1, Code.pc-zakrpa3);
+//		//duzinaNiza noviNiz niz2[indeks] indeks duzinaniz1
+//		Code.put(Code.pop);
+//		Code.put(Code.dup);
+//		//duzinaNiza noviNiz niz2[indeks] indeks indeks
+//		Code.load(fac.getDesignator().obj);
+//		//duzinaNiza noviNiz niz2[indeks] indeks indeks niz1
+//		okreniDvaBroja();
+//		//duzinaNiza noviNiz niz2[indeks] indeks niz1 indeks
+//		Code.put(Code.aload);
+//		//duzinaNiza noviNiz niz2[indeks] indeks niz1[indeks]
+//		
+//		
+//		Code.put2(zakrpa4 + 1, Code.pc - zakrpa4);
+//		//duzinaNiza noviNiz niz2[indeks] indeks niz1[indeks]
+//		okreniDvaBroja();
+//		//duzinaNiza noviNiz niz2[indeks] niz1[indeks] indeks 
+//		Code.put(Code.dup_x2);
+//		//duzinaNiza noviNiz indeks niz2[indeks] niz1[indeks] indeks 		
+//		Code.put(Code.pop);
+//		//duzinaNiza noviNiz indeks niz2[indeks] niz1[indeks]		
+//		Code.put(Code.add);
+//		//duzinaNiza noviNiz indeks niz2[indeks]+niz1[indeks]
+//		
+//		Code.put(Code.dup_x2);
+//		//duzinaNiza niz2[indeks]+niz1[indeks] noviNiz indeks niz2[indeks]+niz1[indeks]
+//		Code.put(Code.pop);
+//		//duzinaNiza niz2[indeks]+niz1[indeks] noviNiz indeks
+//		okreniDvaBroja();
+//		//duzinaNiza niz2[indeks]+niz1[indeks] indeks noviNiz
+//		Code.put(Code.dup_x2);
+//		//duzinaNiza noviNiz niz2[indeks]+niz1[indeks] indeks noviNiz
+//		okreniDvaBroja();
+//		//duzinaNiza noviNiz niz2[indeks]+niz1[indeks] noviNiz indeks
+//		Code.put(Code.dup_x2);
+//		//duzinaNiza noviNiz indeks niz2[indeks]+niz1[indeks] noviNiz indeks
+//		okreniDvaBroja();
+//		//duzinaNiza noviNiz indeks niz2[indeks]+niz1[indeks] indeks noviNiz
+//		Code.put(Code.dup_x2);
+//		//duzinaNiza noviNiz indeks noviNiz niz2[indeks]+niz1[indeks] indeks noviNiz
+//		Code.put(Code.pop);
+//		okreniDvaBroja();
+//		//duzinaNiza noviNiz indeks noviNiz indeks niz2[indeks]+niz1[indeks] 
+//		Code.put(Code.astore);
+//		
+//		//duzinaNiza noviNiz indeks
+//		Code.loadConst(1);
+//		Code.put(Code.add);
+//		//duzinaNiza noviNiz indeks+1
+//		Code.putJump(zakrpa7);
+//		
+//		
+//		
+//		
+//		
+//		Code.put2(zakrpa5 + 1, Code.pc - zakrpa5);
+//		Code.put(Code.pop);
+//		Code.put(Code.pop);
+//		
+//	}
+	
+	
+	// =========================================================
+	// DESIGNATOR STATEMENT
+	// =========================================================
+	public void visit(DesignatorStatementK1 assign) {
+		
+		
+		if(
+				assign.getDesignator().obj.getType().getKind() == Struct.Array) {
+			//niz = new int[3]
+			Code.store(assign.getDesignator().obj);
+			Obj o = assign.getDesignator().obj;
+			Obj helper = TabExtended.find("final" + assign.getDesignator().getDesignatorIdent());
+			if(helper != null) {
+				Code.load(o);
+				Code.put(Code.arraylength);
+				Code.put(Code.newarray);
+				Code.put(1);
+				Code.store(helper);
+			}
+		}else if(assign.getDesignator().getDesignatorList() instanceof DesignatorListK1){
+			//niz[2] = 1;
+			Obj helper = TabExtended.find("final" + assign.getDesignator().getDesignatorIdent().getIdent());
+			if(helper != null) {
+				Code.put(Code.dup2);
+				Code.put(Code.pop);		//niz indeks value indeks
+				Code.load(helper);
+				okreniDvaBroja(); 		//niz indeks value helper indeks
+				Code.put(Code.dup2);	//niz indeks value helper indeks helper indeks
+				Code.put(Code.aload);
+				Code.loadConst(1);
+				Code.put(Code.add);		//niz indeks value helper indeks helper[indeks]+1
+				Code.put(Code.dup);		//niz indeks value helper indeks helper[indeks]+1 helper[indeks]+1
+				Code.loadConst(2);
+				int zakrpa = Code.pc;
+				Code.putFalseJump(Code.ge, 0);
+				//docice ovde ako je prekoraceno
+				Code.put(Code.trap);
+				Code.put(1);
+				
+				Code.put2(zakrpa + 1, Code.pc - zakrpa);
+				////niz indeks value helper indeks helper[indeks]+1
+				Code.put(Code.astore);
+				//niz indeks value
+				okreniDvaBroja();
+				Code.store(assign.getDesignator().obj);
+				//Code.load(helper);
+				//Code.load(assign.getDesignator().getDesignatorList().get)
+			}
+		}else {
+			Code.store(assign.getDesignator().obj);
+		}
+		
+	}
+	
+	public void visit(DesignatorStatementK2 plusplus) {
+		if(plusplus.getDesignator().obj.getKind() == Obj.Elem)
+			Code.put(Code.dup2);
+		// na steku se nalazi niz i index, pa to dupliramo 
+		// pa se nalazi niz index niz index
+		Code.load(plusplus.getDesignator().obj);
+		Code.loadConst(1);
+		Code.put(Code.add);
+		Code.store(plusplus.getDesignator().obj);
+	}
+	
+	public void visit(DesignatorStatementK3 minusminus) {
+		if(minusminus.getDesignator().obj.getKind() == Obj.Elem)
+			Code.put(Code.dup2);
+		Code.load(minusminus.getDesignator().obj);
+		Code.loadConst(1);
+		Code.put(Code.sub);
+		Code.store(minusminus.getDesignator().obj);
+	}
+	
+//	public void visit(DesignatorStatementK4 des) {			//MNOZENJE CELOG NIZA SA BROJEM
+//		Code.load(des.getDesignator().obj);
+//		
+//		Code.loadConst(0); 		//niz indeks
+//		int zakrpa1 = Code.pc;
+//		Code.load(des.getDesignator().obj);
+//		Code.put(Code.arraylength);		//niz indeks duzinaNiza
+//		Code.put(Code.dup2);			//niz indeks duzinaNiza indeks duzinaNiza
+//		int zakrpa2 = Code.pc;
+//		Code.putFalseJump(Code.lt, 0); 
+//										//niz indeks duzinaNiza
+//										//ako je indeks<duzineNiza ovde nastavlja
+//		Code.put(Code.pop);		//niz indeks
+//		Code.put(Code.dup2);	//niz indeks niz indeks
+//		Code.put(Code.dup2);	//niz indeks niz indeks niz indeks
+//		Code.put(Code.aload);	//niz indeks niz indeks niz[indeks]
+//		Code.loadConst(des.getN2());
+//		Code.put(Code.mul);		//niz indeks niz indeks niz[indeks]*mul
+//		Code.put(Code.astore);	//niz indeks
+//		Code.loadConst(1);
+//		Code.put(Code.add);		//niz indeks+1
+//		Code.putJump(zakrpa1);
+//		Code.put2(zakrpa2 + 1, Code.pc - zakrpa2);
+//		Code.put(Code.pop);
+//		Code.put(Code.pop);
+//		Code.put(Code.pop);
+//	}
+//
+//	public void visit(DesignatorStatementK5 d){			SORTIRANJE NIZA
+//		Code.load(d.getDesignator().obj);
+//		
+//		Code.loadConst(-1);
+//		Code.loadConst(0);		
+//		
+//		int leftPetlja = Code.pc;			//left right
+//		Code.put(Code.pop);
+//		Code.loadConst(1);
+//		Code.put(Code.add);					//left+1
+//		Code.put(Code.dup);					//left+1 left+1
+//		Code.loadConst(1);
+//		Code.put(Code.add);					//left+1 left+2
+//		
+//		Code.put(Code.dup);
+//		Code.load(d.getDesignator().obj);
+//		Code.put(Code.arraylength);			//left+1 left+2 left+2 duzinaNiza
+//		int izlaz = Code.pc;
+//		Code.putFalseJump(Code.ne, 0);
+//		
+//		int rightPetlja = Code.pc;
+//		Code.put(Code.dup2); 				//left right left right
+//		Code.put(Code.dup2);				//left right left right left right
+//		Code.put(Code.pop);		
+//		Code.load(d.getDesignator().obj);	//left right left right left niz
+//		okreniDvaBroja(); 					//left right left right niz left
+//		Code.put(Code.aload);				//left right left right niz[left]
+//		
+//		Code.put(Code.dup2);				//left right left right niz[left] right niz[left]
+//		Code.put(Code.pop);					//left right left right niz[left] right 
+//		Code.load(d.getDesignator().obj);	//left right left right niz[left] right niz
+//		okreniDvaBroja();
+//		Code.put(Code.aload);				//left right left right niz[left] niz[right]
+//		Code.put(Code.dup2);				//left right left right niz[left] niz[right] niz[left] niz[right]
+//		int zakrpa1 = Code.pc;
+//		Code.putFalseJump(Code.gt, 0);
+//											//left right left right niz[left] niz[right]
+//		
+//		Code.put(Code.dup_x2); 				//left right left niz[right] right niz[left] niz[right]
+//		Code.put(Code.pop);
+//		Code.load(d.getDesignator().obj);	//left right left niz[right] right niz[left] niz
+//		Code.put(Code.dup_x2);				//left right left niz[right] niz right niz[left] niz
+//		Code.put(Code.pop);
+//		Code.put(Code.astore);				// smesten niz[left] u right  	
+//											//left right left niz[right]
+//		Code.load(d.getDesignator().obj);	//left right left niz[right] niz
+//		Code.put(Code.dup_x2);
+//		Code.put(Code.pop);					//left right niz left niz[right]
+//		Code.put(Code.astore);				//left right
+//
+//		Code.loadConst(0);
+//		Code.loadConst(0);
+//		Code.loadConst(0);
+//		Code.loadConst(0);
+//		
+//		Code.put2(zakrpa1 + 1, Code.pc - zakrpa1);
+//		//left right left right niz[left] niz[right]
+//		Code.put(Code.pop);
+//		Code.put(Code.pop);
+//		Code.put(Code.pop);
+//		Code.put(Code.pop);
+//		Code.loadConst(1);
+//		Code.put(Code.add);
+//		//left right+1
+//		Code.load(d.getDesignator().obj);
+//		Code.put(Code.arraylength);
+//		//left right+1 duzinaNiza
+//		Code.put(Code.dup2);
+//		//left right+1 duzinaNiza right+1 duzinaNiza
+//		Code.put(Code.pop);
+//		//left right+1 duzinaNiza right+1
+//		Code.putFalseJump(Code.eq, rightPetlja);	//ako je right+1 == duzinaNiza nece skociti
+//		Code.putJump(leftPetlja);
+//		//kad skoci na steku : left right+1
+//		
+//		Code.put2(izlaz+1,Code.pc-izlaz);
+//		Code.put(Code.pop);
+//		Code.put(Code.pop);
+//		Code.put(Code.pop);		
+//	}
+}

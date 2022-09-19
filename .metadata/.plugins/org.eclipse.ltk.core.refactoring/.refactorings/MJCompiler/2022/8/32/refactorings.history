@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<session version="1.0">
+<refactoring accessors="true" comment="Delete 3 elements from project &apos;MJCompiler&apos;&#x0D;&#x0A;- Original project: &apos;MJCompiler&apos;&#x0D;&#x0A;- Original elements:&#x0D;&#x0A;     program.mj&#x0D;&#x0A;     test301_A.mj&#x0D;&#x0A;     test301_A^.mj" description="Delete elements" element1="test/test301_A^.mj" element2="test/program.mj" element3="test/test301_A.mj" elements="0" flags="589830" id="org.eclipse.jdt.ui.delete" resources="3" stamp="1659615363074" subPackages="false" version="1.0"/>
+</session>

@@ -1,0 +1,27 @@
+// Test301
+
+program test301
+
+	const int nula = 0;
+	const int jedan = 1;
+	const int tri = 3;
+        const int pet = 5;
+
+	 bool niz[];
+	 char nizch[];
+	
+{
+	void main()	
+		int bodovi;
+		char c;
+	{
+		bodovi = 0;
+		skip 2;
+		bodovi++;
+		bodovi++;
+		print(bodovi);
+		
+	}
+}
+
+

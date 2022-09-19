@@ -1,0 +1,443 @@
+package rs.ac.bg.etf.pp1;
+
+import org.apache.log4j.Logger;
+
+import rs.ac.bg.etf.pp1.ast.*;
+import rs.etf.pp1.symboltable.concepts.*;
+import rs.etf.pp1.symboltable.structure.HashTableDataStructure;
+
+public class SemanticPass extends VisitorAdaptor {
+
+	Obj currentMethod = null;
+	boolean goodMethod = true;
+	int currentConstVal = 0;
+	int currentTypeOfObject = Obj.Var;
+	Struct currentDeclType = null;
+	int numOfMethodVars = 0;
+	int numOfLoops = 0;
+
+	// ====================================================
+	// REPORTS
+	// ====================================================
+	public void report_error(String message, SyntaxNode info) {
+		StringBuilder msg = new StringBuilder(message);
+		int line = (info == null) ? 0 : info.getLine();
+		if (line != 0)
+			msg.append(" na liniji ").append(line);
+		log.error(msg.toString());
+	}
+
+	public void report_info(String message, SyntaxNode info) {
+		StringBuilder msg = new StringBuilder(message);
+		int line = (info == null) ? 0 : info.getLine();
+		if (line != 0)
+			msg.append(" na liniji ").append(line);
+		log.info(msg.toString());
+	}
+
+	Logger log = Logger.getLogger(getClass());
+
+	// ======================================================= //izmeni deo za glob
+	// VAR
+	// =======================================================
+	public void visit(VarDeclTypeK1 varDeclType) {
+		this.currentDeclType = varDeclType.getType().struct;
+	}
+
+	public void visit(VarDeclK1 varDecl) {
+		this.currentDeclType = null;
+	}
+
+	public void visit(List4K1 brackets) {
+		if (ModTab.find(brackets.getIdent()) != null) {
+			report_error("Ime " + brackets.getIdent() + " je vec deklarisano unutar istog opsega! ", brackets);
+			return;
+		}
+
+		if (this.currentDeclType != ModTab.noType) {
+			ModTab.insert(this.currentTypeOfObject, brackets.getIdent(), new Struct(Struct.Array, currentDeclType));
+
+			// Global variable
+//			if (this.currentMethod == null)
+//				this.nVars++;	
+		}
+	}
+
+	public void visit(List4K2 noBrackets) {
+		if (ModTab.find(noBrackets.getIdent()) != null) {
+			report_error("Ime " + noBrackets.getIdent() + " je vec deklarisano unutar istog opsega! ", noBrackets);
+			return;
+		}
+
+		if (this.currentDeclType != ModTab.noType) {
+			ModTab.insert(this.currentTypeOfObject, noBrackets.getIdent(), currentDeclType);
+
+			// Global variable
+//			if (this.currentMethod == null)
+//				this.nVars++;	
+		}
+	}
+
+	public void visit(TypeK1 type) {
+		Obj typeNode = ModTab.find(type.getType());
+		if (typeNode == ModTab.noObj) {
+			report_error("Nije pronadjen tip " + type.getType() + " u ModTabeli simbola! ", null);
+			type.struct = ModTab.noType;
+		} else {
+			if (Obj.Type == typeNode.getKind()) {
+				type.struct = typeNode.getType();
+			} else {
+				report_error("Greska: Ime " + type.getType() + " ne predstavlja tip!", type);
+				type.struct = ModTab.noType;
+			}
+		}
+	}
+
+	// ===========================================================
+	// PROGRAM
+	// ===========================================================
+	public void visit(ProgramNameK1 programName) {
+		programName.obj = ModTab.insert(Obj.Prog, programName.getProgramName(), ModTab.noType);
+		ModTab.openScope();
+	}
+
+	public void visit(ProgramK1 program) { // FALI PROVERA DAL POSTOJI MAIN!!!
+		ModTab.chainLocalSymbols(program.getProgramName().obj);
+		ModTab.closeScope();
+	}
+
+	// ===========================================================
+	// METHOD
+	// ===========================================================
+	public void visit(MethodTypeNameK1 methodTypeName) {
+		if (ModTab.currentScope().findSymbol(methodTypeName.getMethName()) != null) {
+			report_error("Metoda " + methodTypeName.getMethName() + " je vec definisana u istom opsegu",
+					methodTypeName);
+			this.goodMethod = false;
+		} else {
+			this.currentMethod = methodTypeName.obj = ModTab.insert(Obj.Meth, methodTypeName.getMethName(),
+					methodTypeName.getTypeIliVoid().struct);
+			ModTab.openScope();
+			report_info("Obradjuje se funkcija " + methodTypeName.getMethName(), methodTypeName);
+		}
+	}
+
+	public void visit(MethodDeclK1 methodDecl) {
+		if (this.goodMethod) {
+			methodDecl.getMethodTypeName().obj.setLevel(this.numOfMethodVars);
+			ModTab.chainLocalSymbols(this.currentMethod);
+			ModTab.closeScope();
+		}
+		this.currentMethod = null;
+		this.numOfMethodVars = 0;
+		this.goodMethod = true;
+	}
+
+	public void visit(TypeIliVoidK1 retType) {
+		retType.struct = retType.getType().struct;
+	}
+
+	public void visit(TypeIliVoidK2 retType) {
+		retType.struct = ModTab.noType;
+	}
+
+	public void visit(FormalParamDeclK1 brackets) {
+		if (this.goodMethod) {
+			ModTab.insert(Obj.Var, brackets.getName(), new Struct(Struct.Array, brackets.getType().struct));
+			this.numOfMethodVars++;
+		}
+	}
+
+	public void visit(FormalParamDeclK2 noBrackets) {
+		if (this.goodMethod) {
+			ModTab.insert(Obj.Var, noBrackets.getName(), noBrackets.getType().struct);
+			this.numOfMethodVars++;
+		}
+	}
+
+	// ============================================================
+	// CONST
+	// ============================================================
+	public void visit(ConstDeclK1 constDecl) {
+		this.currentDeclType = null;
+	}
+
+	public void visit(ConstDeclTypeK1 constDeclType) {
+		this.currentDeclType = constDeclType.getType().struct;
+	}
+
+	public void visit(OneConstDeclarationK1 declaration) {
+		if (ModTab.currentScope().findSymbol(declaration.getConstName()) != null) {
+			report_error("Ime " + declaration.getConstName() + " je vec deklarisano unutar istog opsega! ",
+					declaration);
+		} else {
+			if (declaration.getTypeOfConst().struct != ModTab.noType) {
+				Obj newObj = ModTab.insert(Obj.Con, declaration.getConstName(), declaration.getTypeOfConst().struct);
+				newObj.setAdr(this.currentConstVal);
+			}
+		}
+	}
+
+	public void visit(TypeOfConstK1 num) {
+		if (this.currentDeclType != null && !this.currentDeclType.equals(ModTab.intType)) {
+			report_error("Nekompatibilan tip ", num);
+			num.struct = ModTab.noType;
+		} else {
+			this.currentConstVal = num.getVal();
+			num.struct = ModTab.intType;
+		}
+	}
+
+	public void visit(TypeOfConstK2 charr) {
+		if (this.currentDeclType != null && !this.currentDeclType.equals(ModTab.charType)) {
+			report_error("Nekompatibilan tip ", charr);
+			charr.struct = ModTab.noType;
+		} else {
+			this.currentConstVal = (int) charr.getVal().charValue();
+			charr.struct = ModTab.charType;
+		}
+	}
+
+	public void visit(TypeOfConstK3 bool) {
+
+	}
+
+	// ============================================================
+	// RECORD
+	// ============================================================
+	public void visit(RecordNameK1 recordName) {
+		if (ModTab.currentScope().findSymbol(recordName.getRecordName()) != null) {
+			report_error("Ime " + recordName.getRecordName() + " je vec deklarisano unutar istog opsega! ", recordName);
+			recordName.struct = ModTab.noType;
+		} else {
+			recordName.struct = new Struct(Struct.Class, new HashTableDataStructure());
+			ModTab.insert(Obj.Type, recordName.getRecordName(), recordName.struct);
+			ModTab.openScope();
+			this.currentTypeOfObject = Obj.Fld;
+		}
+	}
+
+	public void visit(RecordDeclK1 recordDecl) {
+		if (recordDecl.getRecordName().struct != ModTab.noType) {
+			ModTab.chainLocalSymbols(recordDecl.getRecordName().struct);
+			ModTab.closeScope();
+			this.currentTypeOfObject = Obj.Var;
+		}
+	}
+
+	// ============================================================
+	// FACTOR nedovrseno
+	// ============================================================
+	public void visit(FactorK1 fact) {
+		fact.struct = fact.getDesignator().obj.getType();
+
+	}
+
+	public void visit(FactorK2 fact) {
+
+	}
+
+	public void visit(FactorK3 fact) {
+
+	}
+
+	public void visit(FactorK4 factorConst) {
+		factorConst.struct = factorConst.getTypeOfConst().struct;
+	}
+
+	public void visit(FactorK5 factorNewClass) {
+		if (factorNewClass.getType().struct.getKind() != Struct.Class) {
+			report_error("Operaciju new ne pozivate za objekat klase", factorNewClass);
+			return; // ??????
+		} else {
+			factorNewClass.struct = factorNewClass.getType().struct;
+		}
+	}
+
+	public void visit(FactorK6 factorNewArray) {
+		if (!factorNewArray.getExpression().struct.equals(ModTab.intType)) {
+			report_error("Izraz za indeksiranje mora biti tipa int!", factorNewArray);
+		} else {
+			factorNewArray.struct = new Struct(Struct.Array, factorNewArray.getType().struct);
+		}
+	}
+
+	public void visit(FactorK7 fact) {
+		fact.struct = fact.getExpression().struct;
+	}
+
+	// ===========================================================
+	// TERM
+	// ===========================================================
+	public void visit(MoreTerm more) {
+		if (more.getTerm().struct.equals(ModTab.intType) && more.getFactor().struct.equals(ModTab.intType)) {
+			more.struct = ModTab.intType;
+		} else {
+			report_error("Mnozioci nisu tipa int", more);
+			more.struct = ModTab.noType;
+		}
+	}
+
+	public void visit(OneTerm one) {
+		one.struct = one.getFactor().struct;
+	}
+
+	// ===========================================================
+	// Expression
+	// ===========================================================
+	public void visit(ExprK1 e) {
+		if (e.getTerm().struct.equals(ModTab.intType)) {
+			e.struct = ModTab.intType;
+		} else {
+			report_error("Promenljiva mora biti tipa int", e);
+			e.struct = ModTab.noType;
+		}
+	}
+
+	public void visit(ExprK2 e) {
+		e.struct = e.getTerm().struct;
+	}
+
+	public void visit(ExprK3 e) {
+		if (e.getTerm().struct.equals(ModTab.intType) && e.getExpression().struct.equals(ModTab.intType)) {
+			e.struct = ModTab.intType;
+		} else {
+			report_error("Promenljive moraju biti tipa int", e);
+			e.struct = ModTab.noType;
+		}
+	}
+
+	// ===========================================================
+	// DESIGNATOR
+	// ===========================================================
+	public void visit(DesignatorIdent di) {
+
+	}
+
+	// ===========================================================
+	// STATEMENT
+	// ===========================================================
+	public void visit(SingleStatementK7 s) {
+		if (this.currentMethod == null) {
+			report_error("Pozvali ste return van metode", s);
+		} else {
+			if (!s.getExpression().struct.equals(this.currentMethod.getType())) {
+				report_error("Los tip povratne vrednosti", s);
+			}
+		}
+	}
+
+	public void visit(SingleStatementK8 s) {
+		if (this.currentMethod == null) {
+			report_error("Pozvali ste return van metode", s);
+		} else {
+			if (!this.currentMethod.getType().equals(ModTab.noType)) {
+				report_error("Los tip povratne vrednosti", s);
+			}
+		}
+	}
+
+	public void visit(DOStatement d) {
+		this.numOfLoops++;
+	}
+
+	public void visit(SingleStatementK4 d) {
+		this.numOfLoops--;
+	}
+
+	public void visit(SingleStatementK5 d) {
+		if (this.numOfLoops == 0)
+			report_error("Ne moze se izvrsiti break van do while petlje", d);
+	}
+
+	public void visit(SingleStatementK6 d) {
+		if (this.numOfLoops == 0)
+			report_error("Ne moze se izvrsiti continue van do while petlje", d);
+	}
+
+	public void visit(SingleStatementK9 read) {
+		Obj readObj = read.getDesignator().obj;
+		if (readObj.getKind() != Obj.Var && readObj.getKind() != Obj.Fld && readObj.getKind() != Obj.Elem) {
+			report_error("Simbol " + readObj.getName() + " mora biti promenljiva polje objekta ili element niza.",
+					read);
+		}
+
+		if (!(readObj.getType().equals(ModTab.charType) || readObj.getType().equals(ModTab.intType)
+				|| readObj.getType().equals(ModTab.boolType))) {
+			report_error("Promenljiva " + readObj.getName() + " mora biti tipa int, char ili bool.", read);
+		}
+	}
+
+	public void visit(SingleStatementK10 d) {
+		if (!d.getExpression().struct.equals(ModTab.intType) && !d.getExpression().struct.equals(ModTab.charType)
+				&& !d.getExpression().struct.equals(ModTab.boolType)) {
+			report_error("Print naredba sme da sadzro tipove tipa int, char ili bool", d);
+		}
+	}
+
+	// ===========================================================
+	//			DESIGNATOR STATEMENT
+	// ===========================================================
+	private boolean isVarElemFld(Obj object) {
+		if (object.getKind() != Obj.Var && object.getKind() != Obj.Elem && object.getKind() != Obj.Fld) {
+			return false;
+		}
+		return true;
+	}
+	
+	public void visit(DesignatorStatementK1 d) {
+		Obj object = d.getDesignator().obj;
+		if (!isVarElemFld(object)) {
+			report_error("Simbol mora predstavljati promenjivu, element niza ili polje unutar objekta", d);
+			return;
+		}
+		if(!d.getExpression().struct.equals(object.getType())) {
+			report_error("Nekompatabilne vrednosti",d);
+			return;
+		}
+		d.getDesignator().obj = d.getDesignator().getDesignatorIdent().obj;
+
+	}
+	
+	public void visit(DesignatorStatementK2 d) {
+		//?????? nista
+	}
+	
+	public void visit(DesignatorStatementK3 d) {
+		if(d.getDesignator().obj == ModTab.noObj) {
+			report_error("Simbol ne postoji", d);
+			return;
+		}
+		if(d.getDesignator().obj.getKind() != Obj.Meth) {
+			report_error("Simbol" + d.getDesignator().obj.getName() +  " nije fja", d);
+		}
+	}
+	
+	public void visit(DesignatorStatementK4 d) {
+		Obj object = d.getDesignator().obj;
+		if(!isVarElemFld(object)) {
+			report_error("Simbol mora biti promenljiva,element niza ili polje objekta unutrasnje klase", d);
+			return;
+		}
+		if(!object.getType().equals(ModTab.intType)) {
+			report_error("Simbol" + object.getName() + " mora biti tipa int", d);
+			return;
+		}
+		d.getDesignator().obj = d.getDesignator().getDesignatorIdent().obj;
+	}
+	
+	public void visit(DesignatorStatementK5 d) {
+		Obj object = d.getDesignator().obj;
+		if(!isVarElemFld(object)) {
+			report_error("Simbol mora biti promenljiva,element niza ili polje objekta unutrasnje klase", d);
+			return;
+		}
+		if(!object.getType().equals(ModTab.intType)) {
+			report_error("Simbol" + object.getName() + " mora biti tipa int", d);
+			return;
+		}
+		d.getDesignator().obj = d.getDesignator().getDesignatorIdent().obj;
+	}
+
+
+}

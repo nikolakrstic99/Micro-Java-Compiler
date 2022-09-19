@@ -1,0 +1,595 @@
+package rs.ac.bg.etf.pp1;
+
+import org.apache.log4j.Logger;
+import java.util.Stack;
+import rs.ac.bg.etf.pp1.ast.*;
+import rs.etf.pp1.symboltable.Tab;
+import rs.etf.pp1.symboltable.concepts.*;
+
+
+public class SemanticPass extends VisitorAdaptor {
+
+	int printCallCount = 0;
+	int varDeclCount = 0;
+	int returnCount = 0;
+	
+	Obj currentMethod = null;
+	int methodParams = 0;
+	boolean validMethod = false;
+	public int nVars = 0;
+	
+	Stack<Obj> desStack = new Stack<>();
+	public boolean errorDetected = false;
+	Struct currentDeclType = null;
+	int currentConstVal = 0;
+	
+	
+	
+	// ====================================================
+	// REPORTS
+	// ====================================================
+	public void report_error(String message, SyntaxNode info) {
+		StringBuilder msg = new StringBuilder(message);
+		int line = (info == null) ? 0 : info.getLine();
+		if (line != 0)
+			msg.append(" na liniji ").append(line);
+		log.error(msg.toString());
+	}
+	
+	public boolean passed(){
+    	return !errorDetected;
+    }
+
+	public void report_info(String message, SyntaxNode info) {
+		StringBuilder msg = new StringBuilder(message);
+		int line = (info == null) ? 0 : info.getLine();
+		if (line != 0)
+			msg.append(" na liniji ").append(line);
+		log.info(msg.toString());
+	}
+
+	Logger log = Logger.getLogger(getClass());
+	
+	// ====================================================
+	// PROGRAM
+	// ====================================================
+	@Override
+	public void visit(ProgramNameK1 p) {
+		p.obj = Tab.insert(Obj.Prog, p.getProgramName(), Tab.noType);
+		Tab.openScope();
+	}
+	
+	@Override
+	public void visit(ProgramK1 p) {
+		Tab.chainLocalSymbols(p.getProgramName().obj);
+		Tab.closeScope();
+	}
+	
+	
+	
+	
+	// ====================================================
+	// TYPE
+	// ====================================================
+	@Override
+	public void visit(TypeK1 t) {
+		Obj typeNode = Tab.find(t.getType());
+		if(typeNode == Tab.noObj) {
+			report_error("Nije pronadjen tip" + t.getType() +" u tabeli simola", null);
+			t.struct = Tab.noType;
+		}else {
+			if(Obj.Type == typeNode.getKind()) {
+				t.struct = typeNode.getType();
+			}else {
+				report_error("Greska: ime " + t.getType() + "ne predstavlja tip", null);
+				t.struct = Tab.noType;
+			}
+		}
+	}
+	
+	// ====================================================
+	// Const
+	// ====================================================
+	// const int ime = 5, ime2 = 6;
+	
+	@Override
+	public void visit(ConstDeclTypeK1 constType) {
+		// const INT ime = 5, ime2 = 6;
+		this.currentDeclType = constType.getType().struct;
+	}
+
+	@Override
+	public void visit(OneConstDeclarationK1 constDecl) {
+		// const int IME=5, IME2=6;
+		if (Tab.currentScope.findSymbol(constDecl.getConstName()) != null) {
+			report_error("Ime " + constDecl.getConstName() + " je vec deklarisano unutar istog opsega! ", constDecl);
+			return;
+		}
+		
+		if (constDecl.getTypeOfConst().struct != Tab.noType) {
+			Obj newObj = Tab.insert(Obj.Con, constDecl.getConstName(), constDecl.getTypeOfConst().struct);
+			newObj.setAdr(this.currentConstVal); //???
+		}
+	}
+	
+	@Override
+	public void visit(TypeOfConstK1 numConst) {
+		if (this.currentDeclType != null && !this.currentDeclType.equals(Tab.intType)) {
+			report_error("Nekompatibilan tip konstante! ", numConst);
+			numConst.struct = Tab.noType;
+		} else {
+			this.currentConstVal = numConst.getVal();
+			numConst.struct = Tab.intType;	
+		}
+	}
+	
+	@Override
+	public void visit(TypeOfConstK2 charConst) {
+		if (this.currentDeclType != null && !this.currentDeclType.equals(Tab.charType)) {
+			report_error("Nekompatibilan tip konstante! ", charConst);
+			charConst.struct = Tab.noType;
+		} else {
+			this.currentConstVal = charConst.getVal().charValue();
+			charConst.struct = Tab.charType;	
+		}
+	}
+	
+	// ??? PROVERI
+	@Override
+	public void visit(TypeOfConstK3 boolConst) {
+		if (this.currentDeclType != null && !this.currentDeclType.equals(TabExtended.boolType)) {
+			report_error("Nekompatibilan tip konstante! ", boolConst);
+			boolConst.struct = Tab.noType;
+		} else {
+			this.currentConstVal = boolConst.getVal() != null ? 1 : 0;
+			boolConst.struct = TabExtended.boolType;
+		}
+	}
+	
+	@Override
+	public void visit(ConstDeclK1 endOfConst) {
+		this.currentDeclType = null;
+	}
+	
+	
+	
+	
+	
+	// ====================================================
+	// VARIABLE
+	// ====================================================
+	// int i; int i []; int i, j; ...
+	@Override
+	public void visit(VarDeclTypeK1 varType) {
+		this.currentDeclType = varType.getType().struct;
+	}
+	
+	@Override
+	public void visit(VarIdentNoBrackets var) {
+		if(Tab.currentScope.findSymbol(var.getIdent()) != null) {
+			report_error("Ime " + var.getIdent() + " je vec deklarisano unutar datog opsega!", var);
+			return;
+		}
+		if(this.currentDeclType != Tab.noType) {
+			Tab.insert(Obj.Var,var.getIdent(),this.currentDeclType);
+			if(currentMethod == null)
+				nVars++;
+		}
+		report_info("Obradjuju se parametri funckije, parametar = " + var.getIdent(), var);
+	}
+	
+	@Override
+	public void visit(VarIdentBrackets var) {
+		if(Tab.currentScope.findSymbol(var.getIdent()) != null) {
+			report_error("Ime " + var.getIdent() + " je vec deklarisano unutar datog opsega!", var);
+			return;
+		}
+		if(this.currentDeclType != Tab.noType) {
+			Tab.insert(Obj.Var,var.getIdent(), new Struct(Struct.Array, this.currentDeclType));
+			if(isFinal) {
+				
+				isFinal = false;
+			}
+			
+			if(currentMethod == null)
+				nVars++;
+		}
+	}
+	
+	@Override
+	public void visit(VarDeclK1 endVar) {
+		this.currentDeclType = null;
+	}
+	boolean isFinal = false;
+	public void visit(FinalOptK1 fin) {
+		isFinal = true;
+	}
+	
+	
+	// ====================================================
+	// METODE
+	// ====================================================
+	// int metoda(int i) bool b; {...}
+	@Override
+	public void visit(MethodTypeNameK1 methodTypeName) {
+		//INT METODA(int i) bool b; {...}
+		if(Tab.currentScope.findSymbol(methodTypeName.getMethName()) != null) {
+			report_error("Ime " + methodTypeName.getMethName() + " je vec deklarisano unutar datog opsega!", methodTypeName);
+			validMethod = false;
+			return;
+		}
+		currentMethod = Tab.insert(Obj.Meth, methodTypeName.getMethName(), methodTypeName.getTypeIliVoid().struct);
+		methodTypeName.obj = currentMethod;
+		Tab.openScope();
+		report_info("Obradjuje se funkcija " + methodTypeName.getMethName(), methodTypeName);
+	}
+	
+	@Override
+	public void visit(TypeIliVoidK1 t) {
+		t.struct = t.getType().struct;
+	}
+	
+	@Override
+	public void visit(TypeIliVoidK2 t) {
+		t.struct = Tab.noType;
+	}
+	
+	@Override
+	public void visit(FormalParamDeclK1 param) {
+		if(validMethod) {
+			methodParams++;
+			Tab.insert(Obj.Var, param.getName(), new Struct(Struct.Array, param.getType().struct));
+		}
+	}
+	
+	@Override
+	public void visit(FormalParamDeclK2 param) {
+		if(validMethod) {
+			methodParams++;
+			Tab.insert(Obj.Var, param.getName(), param.getType().struct);
+		}
+	}
+	
+	@Override
+	public void visit(MethodDeclK1 methodEnd) {
+		if(validMethod) {
+			methodEnd.getMethodTypeName().obj.setLevel(methodParams);
+			Tab.chainLocalSymbols(currentMethod);
+			Tab.closeScope();
+		}
+		validMethod = false;
+		methodParams = 0;
+		currentMethod = null;
+	}
+	
+	
+	// ====================================================
+	// TERM
+	// ====================================================
+	@Override
+	public void visit(OneTerm one) {
+		one.struct = one.getFactor().struct;
+	}
+	
+//	public void visit(MOD one) {
+//		one.struct = one.getModTerm().struct;
+//	}
+//	
+//	public void visit(M1 m) {
+//		m.struct = m.getModTerm().struct;
+//	}
+	
+//	@Override
+//	public void visit(MoreTerm more) {
+//		more.struct =Tab.intType;
+//	}
+	@Override
+	public void visit(MoreTerm more) {
+		if(!more.getTerm().struct.equals(Tab.intType) || !more.getFactor().struct.equals(Tab.intType)) {
+			report_error("Mnozioci nisu int tipa", more);
+			more.struct = Tab.noType;
+			return;
+		}
+		more.struct = Tab.intType;
+	}
+	
+	
+	// ====================================================
+	// FACTOR
+	// ====================================================
+	@Override
+	public void visit(FactorK1 fac) {
+		fac.struct = fac.getTypeOfConst().struct;
+	}
+		
+	@Override
+	public void visit(FactorK2 fac) {
+		fac.struct = fac.getExpression().struct;
+	}
+	
+	@Override
+	public void visit(FactorK3 fac) {
+		if (!fac.getExpression().struct.equals(Tab.intType)) {
+			report_error("Indeksiranje niza mora biti tipa int!", fac);
+		}
+		fac.struct = new Struct(Struct.Array, fac.getType().struct);
+	}
+	
+//	public void visit(FactorK8 fac) {
+//		fac.struct = new Struct(Struct.Array, fac.getType().struct);
+//	}
+//	
+//	public void visit(FactorK9 fac) {
+//		fac.struct = fac.getFactor().struct;
+//	}
+
+	@Override
+	public void visit(FactorK4 fac) {
+		fac.struct = fac.getDesignator().obj.getType();
+	}
+	
+//	public void visit(FactorK6 fac) {
+//		if(fac.getDesignator().obj.getKind()!=Struct.Array) {
+//			report_error("# zahteva niz!", fac);
+//		}
+//		fac.struct = TabExtended.intType;
+//	}
+	
+//	public void visit(FactorK7 fac) {
+//		if(fac.getDesignator().obj.getKind()!=Struct.Array || fac.getDesignator1().obj.getKind()!=Struct.Array) {
+//			report_error("@ zahteva niz!", fac);
+//		}
+//		fac.struct = TabExtended.intType;
+//	}
+	
+	
+	
+	// ====================================================
+	// EXPRESSION
+	// ====================================================
+	@Override
+	public void visit(ExprK1 e) {
+		if(e.getTerm().struct.equals(Tab.intType) == false) {
+			report_error("Nakon minusa mora doci int", e);
+			e.struct = Tab.noType;
+			return;
+		}
+		e.struct = Tab.intType;
+	}
+	
+	@Override
+	public void visit(ExprK2 e) {
+		e.struct = e.getTerm().struct;
+	}
+
+	@Override
+	public void visit(ExprK3 e) {
+		if(e.getExpression().struct==null) {
+			System.out.println("exp je null");
+		}
+		if(e.getTerm().struct==null) {
+			System.out.println("term je null");
+		}
+		if(!e.getExpression().struct.equals(Tab.intType) || !e.getTerm().struct.equals(Tab.intType)) {
+			report_error("Sabirci moraju biti int tipa", e);
+			return;
+		}
+		e.struct = Tab.intType;
+	}
+	
+	public void visit(ExprK4 e) {
+		if(e.getExpression().struct==null) {
+			System.out.println("exp je null");
+		}
+		if(e.getExpression1().struct==null) {
+			System.out.println("exp2 je null");
+		}
+		if(!e.getExpression().struct.equals(Tab.intType) || !e.getExpression1().struct.equals(Tab.intType)) {
+			report_error("Sabirci moraju biti int tipa", e);
+			return;
+		}
+		e.struct = Tab.intType;
+	}
+	
+//	public void visit(ExprK5 e) {
+//		if(e.getExpression().struct==null) {
+//			System.out.println("exp je null");
+//		}
+//		if(!e.getExpression().struct.equals(Tab.intType)) {
+//			report_error("Operand faktorijela mora biti int tipa", e);
+//			return;
+//		}
+//		e.struct = Tab.intType;
+//	}
+//	
+//	public void visit(ExprK6 e) {
+//		if(e.getExpression().struct==null) {
+//			System.out.println("exp je null");
+//		}
+//		if(!e.getExpression().struct.equals(Tab.intType)) {
+//			report_error("Operand eksponenta mora biti int tipa", e);
+//			return;
+//		}
+//		e.struct = Tab.intType;
+//	}
+//	
+//	public void visit(ExprK7 e) {
+//		if(e.getN1()<=0) {
+//			System.out.println("Broje nije pozitivan");
+//		}
+//		e.struct = Tab.intType;
+//	}
+//	
+//	public void visit(ExprK8 e) {
+//		if(e.getDesignator().obj==null) {
+//			System.out.println("exp je null");
+//		}
+//		if(!e.getDesignator().obj.getType().equals(Tab.intType)) {
+//			report_error("Operand eksponenta mora biti int tipa", e);
+//			return;
+//		}
+//		e.struct = Tab.intType;
+//	}
+	
+	
+	// ====================================================
+	// DESIGNATOR
+	// ====================================================
+	@Override
+	public void visit(DesignatorIdent des) {
+		des.obj = Tab.find(des.getIdent());
+		if(des.obj == Tab.noObj) {
+			report_error("Data promenljiva ne postoji", des);
+		}
+		desStack.push(des.obj);
+	}
+	
+	@Override
+	public void visit(DesignatorListK1 des) {
+		// indeksiranje niza
+		if(this.desStack.peek().getType().getKind() != Struct.Array) {
+			report_error("Mozete indeksirati samo nizove", des);
+			return;
+		}
+		if(des.getExpression().struct != Tab.intType) {
+			report_error("Indeks niza nije tipa int", des);
+			return;
+		}
+		Obj niz = desStack.pop();
+		Obj element = new Obj(Obj.Elem, niz.getName(), niz.getType().getElemType());
+		desStack.push(element);
+	}
+	
+//	public void visit(DesignatorListK3 des) {
+//		// indeksiranje niza
+//		if(this.desStack.peek().getType().getKind() != Struct.Array) {
+//			report_error("Mozete indeksirati samo nizove", des);
+//			return;
+//		}
+//		Obj niz = desStack.pop();
+//		Obj element = new Obj(Obj.Elem, niz.getName(), niz.getType().getElemType());
+//		element.setFpPos(des.getN2());
+//		desStack.push(element);
+//	}
+	
+	@Override
+	public void visit(Designator designator) {
+		designator.obj = desStack.pop();
+	}
+	
+
+	
+	
+	
+	// ====================================================
+	// STATEMENT
+	// ====================================================
+	@Override
+	public void visit(SingleStatementK2 read) {
+		if(read.getDesignator().obj.getKind() != Obj.Var && read.getDesignator().obj.getKind() != Obj.Elem) {
+			report_error("Simbol " + read.getDesignator().obj.getName() + " mora biti promenljjiva ili element niza", read);
+		}
+		
+		if(!read.getDesignator().obj.getType().equals(Tab.intType) && !read.getDesignator().obj.getType().equals(Tab.charType) &&
+				!read.getDesignator().obj.getType().equals(TabExtended.boolType)) {
+			report_error("Simbol " + read.getDesignator().obj.getName() + " mora biti tipa int, char ili boolean", read);
+		}
+		read.getDesignator().obj = read.getDesignator().getDesignatorIdent().obj;
+	}
+	
+//	public void visit(SingleStatementK3  print) {
+//		if(!print.getExpression().struct.equals(Tab.intType) && !print.getExpression().struct.equals(Tab.charType) && 
+//				!print.getExpression().struct.equals(TabExtended.boolType)) {
+//			report_error("Print podrzava ispis samo int, char i bool tipova", print);
+//		}
+//	}
+//	
+//	public void visit(SingleStatementK4 print) {
+//		if(!print.getExpression().struct.equals(Tab.intType) && !print.getExpression().struct.equals(Tab.charType) && 
+//				!print.getExpression().struct.equals(TabExtended.boolType)) {
+//			report_error("Print podrzava ispis samo int, char i bool tipova", print);
+//		}
+//	}
+	
+	public void visit(SingleStatementK3  print) {
+		if(!print.getExpression().struct.equals(Tab.intType) && !print.getExpression().struct.equals(Tab.charType) && 
+				!print.getExpression().struct.equals(TabExtended.boolType)) {
+			report_error("Print podrzava ispis samo int, char i bool tipova", print);
+		}
+		if(print.getExpression().struct.getKind()!=Struct.Array) {
+			report_error("Print naredba za ispis niza zahteva strukturu niza", print);
+		}
+	}
+	
+	public void visit(SingleStatementK4 print) {
+		if(print.getExpression().struct.getKind()==Struct.Array) {
+			return;
+		}
+		if(!print.getExpression().struct.equals(Tab.intType) && !print.getExpression().struct.equals(Tab.charType) && 
+				!print.getExpression().struct.equals(TabExtended.boolType)) {
+			report_error("Print podrzava ispis samo int, char i bool tipova", print);
+		}
+	}
+	
+	@Override
+	public void visit(SingleStatementK5 print) {
+
+	}
+	
+	
+	
+	// ====================================================
+	// DESIGNATOR STATEMENT
+	// ====================================================
+	@Override
+	public void visit(DesignatorStatementK1 ds) {
+		if(ds.getDesignator().obj.getKind() != Obj.Var && ds.getDesignator().obj.getKind() != Obj.Elem) {
+			report_error("Simbol " + ds.getDesignator().obj.getName() + " mora biti promenljiva ili element niza", ds);
+			return;
+		}
+//		if(!ds.getExpression().struct.assignableTo(ds.getDesignator().obj.getType())) {
+//			report_error("Operacija dodele ne moze da se izvrsi jer tipovi nisu kompatabilni", ds);
+//			return;
+//		}
+		report_info("Obradjuje se operator dodele", ds);
+		//?????????????????????????????
+		ds.getDesignator().obj = ds.getDesignator().getDesignatorIdent().obj;
+	}
+	
+	@Override
+	public void visit(DesignatorStatementK2 ds) {
+		if(ds.getDesignator().obj.getKind() != Obj.Var && ds.getDesignator().obj.getKind() != Obj.Elem) {
+			report_error("Simbol " + ds.getDesignator().obj.getName() + " mora biti promenljiva ili element niza", ds);
+			return;
+		}
+		if(!ds.getDesignator().obj.getType().equals(Tab.intType)) {
+			report_error("Simbol " + ds.getDesignator().obj.getName() + " kod operacije ++ mora biti tipa int", ds);
+			return;
+		}
+		report_info("Obrada ++", ds);
+		//?????????????????????????????
+		ds.getDesignator().obj = ds.getDesignator().getDesignatorIdent().obj;
+	}
+	
+	@Override
+	public void visit(DesignatorStatementK3 ds) {
+		if(ds.getDesignator().obj.getKind() != Obj.Var && ds.getDesignator().obj.getKind() != Obj.Elem) {
+			report_error("Simbol " + ds.getDesignator().obj.getName() + " mora biti promenljiva ili element niza", ds);
+			return;
+		}
+		if(!ds.getDesignator().obj.getType().equals(Tab.intType)) {
+			report_error("Simbol " + ds.getDesignator().obj.getName() + " kod operacije ++ mora biti tipa int", ds);
+			return;
+		}
+		
+		//?????????????????????????????
+		ds.getDesignator().obj = ds.getDesignator().getDesignatorIdent().obj;
+	}
+	
+//	public void visit(DesignatorStatementK5 d){
+//		if(d.getDesignator().obj.getKind() != Struct.Array) {
+//			report_error("Simbol " + d.getDesignator().obj.getName() + " kod operacije sortiranja niza mora biti niz", d);
+//		}
+//	}
+
+}

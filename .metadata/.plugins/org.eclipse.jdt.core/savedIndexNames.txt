@@ -1,0 +1,7 @@
+INDEX VERSION 1.131+C:\Users\Nikola\Desktop\pp rezerva\.metadata\.plugins\org.eclipse.jdt.core
+3024886296.index
+3423253026.index
+570380218.index
+2792787403.index
+485005741.index
+963485355.index
